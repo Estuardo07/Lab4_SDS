@@ -1,0 +1,169 @@
+---
+title: "Informe Lab04 SDS"
+author: "Marco Ramírez"
+date: "2023-03-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Laboratorio 4: Familia de malware
+
+
+```{r message=FALSE, warning=FALSE}
+library(cluster) #Para calcular la silueta
+library(e1071)#para cmeans
+library(mclust) #mixtures of gaussians
+library(fpc) #para hacer el plotcluster
+library(NbClust) #Para determinar el número de clusters óptimo
+library(factoextra) #Para hacer gráficos bonitos de clustering
+library(hopkins) #Para revisar si vale la pena hacer agrupamiento
+library(GGally) #Para hacer el conjunto de graficos
+library(FeatureImpCluster) #Para revisar la importancia de las variables en los grupos.
+library(pheatmap) #Para hacer mapa de calor
+library(ggrepel)
+library(stringr)
+library(clustertend)
+library(NbClust)
+library(factoextra)
+library(ClusterR)
+library(fpc)
+library(clusterSim)
+library(psych)
+library(FactoMineR)
+library(clustMixType)
+
+```
+
+#### Creacion del dataset
+
+Para consultar la creacion del datasat, consultar el archivo python
+
+#### Exploracion y pre procesamiento de datos
+
+```{r}
+db<-read.csv('dataset.csv')
+#limpiamos la columna de import.funciones
+db$Imports.funciones<-gsub("'",'',db$Imports.funciones)
+db$Imports.funciones<-gsub("\\[",'',db$Imports.funciones)
+db$Imports.funciones<-gsub("\\]",'',db$Imports.funciones)
+head(db,10)
+```
+
+***
+Como se observa anteriormente, nuestra base de datos contiene informacion de los 39 virus dentro de la carpeta, la cual cada uno contenia `r names(db)`, con un total de `r nrow(db)` filas y `r ncol(db)` columnas. A continuacion veremos el resumen de cada columna. 
+
+```{r}
+summary(db)
+```
+
+#### Implementacion del modelo
+
+Segun la teoria para usar Kmeans se requiere de datos numericos, por ello convertiremos las variables numéricas mediante la técnica de codificación de variables dummies.
+
+
+
+```{r}
+
+db$Section.Name[db$Section.Name=='.data']<- 1
+db$Section.Name[db$Section.Name=='.rsrc']<- 2
+db$Section.Name[db$Section.Name=='UPX2']<- 3
+db$Section.Name<-as.numeric(db$Section.Name)
+
+#Columna de imports.dll
+db$Imports.dll[db$Imports.dll=='WS2_32.dll']<- 1
+#Columna de imports.funciones
+db$Imports.funciones[db$Imports.funciones=='gethostbyname, inet_ntoa, WSAStartup, gethostname']<- 1
+db$Imports.funciones[db$Imports.funciones=='closesocket']<- 2
+db$Imports.funciones[db$Imports.funciones=='WSAGetLastError']<- 3
+db$Imports.funciones[db$Imports.funciones=='inet_ntoa']<- 4
+db$Imports.funciones[db$Imports.funciones=='WSASetLastError']<- 5
+db$Imports.funciones[db$Imports.funciones=='send']<- 6
+db$Imports.funciones<-as.numeric(db$Imports.funciones)
+db$Header.ImageBase<-as.numeric(db$Header.ImageBase)
+db$Header.SectionAlignment<-as.numeric(db$Header.SectionAlignment)
+db$Imports.dll<-as.numeric(db$Imports.dll)
+summary(db)
+#Removemos las columnas que no aportan valor
+db <- db[,!names(db) %in% c("Imports.dll")]
+db <- db[,!names(db) %in% c("X")]
+db <- db[,!names(db) %in% c("Header.SectionAlignment")]
+
+
+```
+
+***
+Como se observa todos los datos son numericos a excepcion del nombre del archivo el cual omitiremos en este proceso. Primero vamos a determinar la tendencia del agrupamiento usando la VAT (Visual Assessment of cluster Tendency)
+
+
+```{r}
+
+clusteringVar<-scale(db[,-1])
+hopkins(clusteringVar)
+#Matriz de distancia
+datos_dist<- dist(clusteringVar)
+
+```
+*** 
+Como se puede ver, el valor del estadístico de Hopkins tiene un valor muy lejano a 0.5, por lo que no son datos aleatorios, lo que nos podría facilitar un agrupamiento.
+
+Ahora, usando un método gráfico, si nos basamos en la gráfica siguiente:
+```{r}
+knitr::opts_chunk$set(fig.width=12, fig.height=8) 
+fviz_dist(datos_dist, show_labels = F)
+
+```
+***
+Como se puede observar en la VAT, existen patrones, algunos definidos, por lo que se ratifica que el dato que arroja el estadístico de Hopkins, es correcto.
+***
+Ahora vamos a determinar el numero de grupos a formar mas adecuado para los datos que estamos trabajando.
+```{r}
+#Metodo de codo
+wss=0
+for (i in 1:9) 
+  wss[i] <- sum(kmeans(db[,-1], centers=i)$withinss)
+
+plot(1:9, wss, type="b", xlab="Number of Clusters",  ylab="Within groups sum of squares")
+```
+
+***
+Basándonos en el método de codo, el número perfecto para trabajar es de 3, ya que, siguiendo la teoría del método, el punto de inflexión es igual a 3.
+
+
+
+```{r}
+km<-kmeans(clusteringVar,3,iter.max =100)
+db$grupo<-km$cluster
+
+plotcluster(clusteringVar,km$cluster) 
+```
+
+***
+Como se observa en la imagen, el primer paso es escoger el numero de grupos K, en este caso fue 2 tal como se justificó anteriormente, posterior a ello se establecen k centroides en el espacio de datos.
+
+```{r}
+fviz_cluster(km, data = clusteringVar,geom = "point", ellipse.type = "norm")
+
+```
+***
+Luego se asignan los centroides y se reubican.
+
+```{r}
+silkm<-silhouette(km$cluster,dist(clusteringVar))
+mean(silkm[,3]) 
+Kmean<-mean(silkm[,3]) 
+
+
+```
+***
+Se obtiene que la silueta de K-means es de 0.5156991 esto indica que tenemos un buen resultado, ya que es muy cercano a 1, siendo un resultado deseable.
+Y el gráfico de la silueta de K-means sería el siguiente:
+
+```{r}
+
+plot(silkm, cex.names=.4, col=1:3, border=NA)
+
+
+```
