@@ -1,6 +1,6 @@
 ---
 title: "Informe Lab04 SDS"
-author: "Marco Ramírez"
+author: "Marco Ramírez, Javier Hernández"
 date: "2023-03-26"
 output: html_document
 ---
@@ -10,7 +10,6 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ## Laboratorio 4: Familia de malware
-
 
 ```{r message=FALSE, warning=FALSE}
 library(cluster) #Para calcular la silueta
@@ -52,7 +51,6 @@ db$Imports.funciones<-gsub("\\]",'',db$Imports.funciones)
 head(db,10)
 ```
 
-***
 Como se observa anteriormente, nuestra base de datos contiene informacion de los 39 virus dentro de la carpeta, la cual cada uno contenia `r names(db)`, con un total de `r nrow(db)` filas y `r ncol(db)` columnas. A continuacion veremos el resumen de cada columna. 
 
 ```{r}
@@ -62,8 +60,6 @@ summary(db)
 #### Implementacion del modelo
 
 Segun la teoria para usar Kmeans se requiere de datos numericos, por ello convertiremos las variables numéricas mediante la técnica de codificación de variables dummies.
-
-
 
 ```{r}
 
@@ -94,9 +90,7 @@ db <- db[,!names(db) %in% c("Header.SectionAlignment")]
 
 ```
 
-***
 Como se observa todos los datos son numericos a excepcion del nombre del archivo el cual omitiremos en este proceso. Primero vamos a determinar la tendencia del agrupamiento usando la VAT (Visual Assessment of cluster Tendency)
-
 
 ```{r}
 
@@ -106,19 +100,21 @@ hopkins(clusteringVar)
 datos_dist<- dist(clusteringVar)
 
 ```
-*** 
+
 Como se puede ver, el valor del estadístico de Hopkins tiene un valor muy lejano a 0.5, por lo que no son datos aleatorios, lo que nos podría facilitar un agrupamiento.
 
 Ahora, usando un método gráfico, si nos basamos en la gráfica siguiente:
+
 ```{r}
 knitr::opts_chunk$set(fig.width=12, fig.height=8) 
 fviz_dist(datos_dist, show_labels = F)
 
 ```
-***
+
 Como se puede observar en la VAT, existen patrones, algunos definidos, por lo que se ratifica que el dato que arroja el estadístico de Hopkins, es correcto.
-***
+
 Ahora vamos a determinar el numero de grupos a formar mas adecuado para los datos que estamos trabajando.
+
 ```{r}
 #Metodo de codo
 wss=0
@@ -128,10 +124,7 @@ for (i in 1:9)
 plot(1:9, wss, type="b", xlab="Number of Clusters",  ylab="Within groups sum of squares")
 ```
 
-***
 Basándonos en el método de codo, el número perfecto para trabajar es de 3, ya que, siguiendo la teoría del método, el punto de inflexión es igual a 3.
-
-
 
 ```{r}
 km<-kmeans(clusteringVar,3,iter.max =100)
@@ -140,14 +133,13 @@ db$grupo<-km$cluster
 plotcluster(clusteringVar,km$cluster) 
 ```
 
-***
 Como se observa en la imagen, el primer paso es escoger el numero de grupos K, en este caso fue 2 tal como se justificó anteriormente, posterior a ello se establecen k centroides en el espacio de datos.
 
 ```{r}
 fviz_cluster(km, data = clusteringVar,geom = "point", ellipse.type = "norm")
 
 ```
-***
+
 Luego se asignan los centroides y se reubican.
 
 ```{r}
@@ -157,7 +149,7 @@ Kmean<-mean(silkm[,3])
 
 
 ```
-***
+
 Se obtiene que la silueta de K-means es de 0.5156991 esto indica que tenemos un buen resultado, ya que es muy cercano a 1, siendo un resultado deseable.
 Y el gráfico de la silueta de K-means sería el siguiente:
 
@@ -167,3 +159,14 @@ plot(silkm, cex.names=.4, col=1:3, border=NA)
 
 
 ```
+
+#### Conclusiones
+
+¿Para qué número de clústers se obtiene el coeficiente de Silhouette más alto?
+El coeficiente de Silhouette más alto se obtiene con 3 clústers. Esto se evidencia en el método del codo el cual nos indica que el número adecuado de clústers a utilizar es de 3.
+
+¿Coincide el coeficiente de Silhouette con el método del codo?
+El coeficiente de Silhouette fue de 0.5156991 y el método del codo al indicarnos 3 como el número ideal de clústers, se obtiene una media de 0.5634987. Se puede observar que ambos valores se asemejan mucho, logrando así resultados positivos.
+
+¿Cuántas familias existen entre los ejemplares de malware proporcionados?
+Según la gráfica del coeficiente contra K, se determina que el número de familias de malware encontradas es 3.
